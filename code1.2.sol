@@ -32,9 +32,11 @@ contract x {
     //Person eledgable for money.
     uint public AutomatedEscrowSessionNumber;
     mapping(address => mapping(uint => mapping(bool => bool))) BuyerOrSeller; //Bool 1 determines if person is involved with transaction bool 2 determines if person is buyer or seller. 
-    mapping(address => mapping(uint => bool)) PersonViolatedEscrowTerms;
-    mapping(address => mapping(uint => uint)) PersonEledgableForMoney;
+    mapping(address => mapping(uint => bool)) PersonViolatedEscrowTerms; //address belongs to seller, uint is number of the escrow session number bool determines if user has been deceptive.
+    mapping(address => mapping(uint => uint)) PersonEledgableForMoney; //address of seller, first uint represents escrow session number, second uint represents quantity of money eledgable for.
 
+    //Amount of time untill seller is eledgable for withdrawing funds from escrow
+    uint public constant Escrowithdrawtime = 604800;
 
     //Listing info
     struct Listing {
@@ -44,6 +46,7 @@ contract x {
         string ListingName;
         string About;
         uint Quantity;
+        uint TransactionTime;
         bool OutOfStock;
     }
 
@@ -69,6 +72,9 @@ contract x {
 
     //Data writing permissions
     mapping(address => bool) public ShippingDataWritePermissionsGranted;
+
+    //Escrow session tied to listing.
+    mapping(uint => uint) EscrowSessionTiedToListing; //first uint is the number of listing, second uint represents escrow session number.
 
     //Shipping info
     struct ShippingInfo {
@@ -171,8 +177,14 @@ contract y is x{
         PersonalListingPage[msg.sender][PersonalListingNumber[msg.sender]].Quantity = _Quantity;
 
         //Determines escrow specific info.
-        BuyerOrSeller[msg.sender][GlobalListingPageID][true] = true;
-        
+        AutomatedEscrowSessionNumber++;
+        EscrowSessionTiedToListing[AutomatedEscrowSessionNumber] = GlobalListingPageID;
+        BuyerOrSeller[msg.sender][AutomatedEscrowSessionNumber][true] = true;
+        PersonViolatedEscrowTerms[msg.sender][AutomatedEscrowSessionNumber] = false;
+        PersonEledgableForMoney[msg.sender][AutomatedEscrowSessionNumber] = 0;
+
+        //Escrow number tied to listing.
+        EscrowSessionTiedToListing[GlobalListingPageID] = AutomatedEscrowSessionNumber;
 
     }
 
@@ -189,31 +201,28 @@ contract y is x{
             ListingPage[_GlobalSellPageID].OutOfStock = true;
         }
 
-        AutomatedEscrowSessionNumber++;
-
-
-    }
-
-    //Automated escrow system
-    function WithdrawAutomatedEscrow() public payable  {
-
+        ListingPage[_GlobalSellPageID].TransactionTime = block.timestamp;
+        BuyerOrSeller[msg.sender][EscrowSessionTiedToListing[_GlobalSellPageID]][true] = false; //Not a seller duh
         
-
     }
 
     function Report (uint _TypeOfReport, uint _GlobalListingPageID, string memory _ReportDetails) public {
 
         require(ListingExists[_GlobalListingPageID] == true, "Listing you tried to report does not exist!");
-        require(_TypeOfReport == 1 || _TypeOfReport == 2, "Invalid report type.");
+        require(_TypeOfReport == 1 || _TypeOfReport == 2 || _TypeOfReport == 3, "Invalid report type.");
 
         ReportSessionNumber++;
         ReportSessionNumberExists[ReportSessionNumber] = true;
 
         if(_TypeOfReport == 1) { //For reporting unrelated items.
 
-             ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for not being catagorically related";
+            ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for not being catagorically related";
 
         } else if (_TypeOfReport == 2){ //For reporting potentially illicit items.
+
+            ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for potentially being illicit.";
+
+        } else if (_TypeOfReport == 3){ //For reporting potentially scamers.
 
             ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for potentially being illicit.";
 
@@ -237,6 +246,31 @@ contract y is x{
 
     }
 
+     //Automated escrow system
+    function WithdrawAutomatedEscrow(uint _GlobalSellPageID, uint _SellerOrBuyerCommand) public {
+
+        require(BlackListed[msg.sender] == false, "Your abilities have been halted.");
+        require(_SellerOrBuyerCommand == 1 || _SellerOrBuyerCommand == 2, "Invalid abillities.");
+
+        if (_SellerOrBuyerCommand == 1) { //Buyer commands
+            
+            require(BuyerOrSeller[msg.sender][EscrowSessionTiedToListing[_GlobalSellPageID]][true] == false, "You are not a buyer");
+
+            Report(3,_GlobalSellPageID,"Item is not what I wanted to buy.");
+
+
+        } else if (_SellerOrBuyerCommand == 2) { //Seller commands
+
+            require(BuyerOrSeller[msg.sender][EscrowSessionTiedToListing[_GlobalSellPageID]][true] == true, "You are not a seller");
+            require(ListingPage[GlobalListingPageID].TransactionTime == ListingPage[_GlobalSellPageID].TransactionTime + Escrowithdrawtime, "Must wait 1 week before withdrawing money");
+
+            payable (msg.sender).call{value: ListingPage[GlobalListingPageID].Price}("");
+
+        }
+
+    }
+
+    //Report Trial to determine guilt or innocence of perp
     function ReportTrial (uint _ReportSessionNumber, bool _Vote) public {
 
         require(NumberOfVotes[ReportSessionNumber] <= MaxVotes, "Maximum votes have been reached for this topic.");
@@ -272,9 +306,20 @@ contract y is x{
                 
                 BlackListed[ReportTrialInstance[ReportSessionNumber].AddressOfUserBehindContent] = true;
 
-            }
+            } 
 
-           
+        } else if (ReportTrialInstance[ReportSessionNumber].ReportType == 3) { //Majour offense report!
+
+            UserHasvoted[msg.sender][_ReportSessionNumber][true] = _Vote;
+            NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] = NumberOfVotes[ReportSessionNumber];
+
+
+            if(NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] >= VoteThreshhold){
+                
+                BlackListed[ReportTrialInstance[ReportSessionNumber].AddressOfUserBehindContent] = true;
+
+            } 
+
         } 
 
     }
