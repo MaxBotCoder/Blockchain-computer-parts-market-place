@@ -8,6 +8,9 @@ contract x {
 
     uint public constant price = 4;
 
+    //Moderator permissions
+    mapping(address => bool) public ModPermissions;
+
     //Verifies if account exists
     mapping(address => bool) public accountAddressValid; //Determines if address has bought an account
     uint public AccountIDs;
@@ -143,7 +146,42 @@ contract x {
     
 }
 
-contract y is x{
+contract y is x {
+
+    //Moderator elections system
+    struct ModElectionInfo {
+        address PersonWhoWillBeElected;
+        uint VoteType; //1 = vote in, 2 = vote out
+        address AddressOfUserBehindContent; //Only for reporting people.
+        uint ListingNumberToReport; //Only for posts.
+        string ReportDetails;
+        mapping(address => mapping(uint => mapping(bool => uint))) VerdictReached;
+    }
+
+    //Maximum votes in moderator election.
+    uint public constant MaximumModVotes = 25; //Must be changed prior to deployment.
+    uint public constant ModVoteThreshHold = 13;
+
+    //global voting.
+    uint public ElectionSessionNumber;
+    mapping(address => mapping(uint => mapping(uint => bool))) SpecificVoteSessionCreatedForPerson; //First uint represents vote type, second uint represents vote session number.
+    mapping(address => mapping(uint => bool)) ElectionForPersonExists; //Determines if a person's election exists depending on context.
+    mapping(address => uint) AddressToElectionNumber;
+    mapping(uint => ReportTrialStorage) public ElectionSessionInstance;
+
+    //Personal Voting.
+    mapping(address => mapping(uint => mapping(bool => bool))) public UserHasvotedInElection;
+    
+    //Catagorised voting
+    mapping(uint => uint) NumberOfVotesInElection;
+    mapping(uint => mapping(bool => uint)) NumberOfVotesYesOrNo; //First uint is election session number, bool is yes or no and third uint is number of votes that have specific bool value.
+
+    //Voting session conclusion status.
+    mapping(address => mapping(uint => mapping(bool => uint))) VoteSessionConcluded;
+
+}
+
+contract z is y{
 
     //Join us
 
@@ -224,7 +262,11 @@ contract y is x{
 
         } else if (_TypeOfReport == 3){ //For reporting potentially scamers.
 
-            ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for potentially being illicit.";
+            ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for scamming.";
+
+        } else if (_TypeOfReport == 3){ //For reporting potentially scamers.
+
+            ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for abusing admin powers.";
 
         }
 
@@ -257,7 +299,6 @@ contract y is x{
             require(BuyerOrSeller[msg.sender][EscrowSessionTiedToListing[_GlobalSellPageID]][true] == false, "You are not a buyer");
 
             Report(3,_GlobalSellPageID,"Item is not what I wanted to buy.");
-
 
         } else if (_SellerOrBuyerCommand == 2) { //Seller commands
 
@@ -308,7 +349,7 @@ contract y is x{
 
             } 
 
-        } else if (ReportTrialInstance[ReportSessionNumber].ReportType == 3) { //Majour offense report!
+        } else if (ReportTrialInstance[ReportSessionNumber].ReportType == 3) { //Scam Report!
 
             UserHasvoted[msg.sender][_ReportSessionNumber][true] = _Vote;
             NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] = NumberOfVotes[ReportSessionNumber];
@@ -320,11 +361,60 @@ contract y is x{
 
             } 
 
-        } 
+        } else if (ReportTrialInstance[ReportSessionNumber].ReportType == 4) { //Abuse of admin powers!
+
+            UserHasvoted[msg.sender][_ReportSessionNumber][true] = _Vote;
+            NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] = NumberOfVotes[ReportSessionNumber];
+
+
+            if(NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] >= VoteThreshhold){
+                
+                BlackListed[ReportTrialInstance[ReportSessionNumber].AddressOfUserBehindContent] = true;
+
+            } 
+
+        }
+
+    }
+
+    function VoteInModerator(address _WhoToVoteFor, uint _TypeOfVote) public {
+
+        require(BlackListed[_WhoToVoteFor] == false, "Cannot vote in black listed people");
+        require(accountAddressValid[_WhoToVoteFor] == true, "Person you vote in must have skin in the game.. aka have an account ofc.");
+        require(_TypeOfVote == 1 || _TypeOfVote == 2, "Invalid vote type.");
+        require(UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == true || UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == false, "You have already voted");
+        require(NumberOfVotesInElection[AddressToElectionNumber[_WhoToVoteFor]] == MaximumModVotes, "Election concluded");
+
+        if(_TypeOfVote == 1) { //vote in
+
+            if(SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][ElectionSessionNumber][_TypeOfVote] == false) {
+
+                ElectionSessionNumber++;
+                SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][ElectionSessionNumber][_TypeOfVote] = true;
+                ElectionForPersonExists[_WhoToVoteFor][1] = true;
+                AddressToElectionNumber[_WhoToVoteFor] = ElectionSessionNumber; 
+
+            }
+            
+            UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == true;
+            NumberOfVotesInElection[AddressToElectionNumber[_WhoToVoteFor]]++;
+            NumberOfVotesYesOrNo[AddressToElectionNumber[_WhoToVoteFor]][true]++;
+            
+            if(NumberOfVotesYesOrNo[AddressToElectionNumber[_WhoToVoteFor]][true] >= ModVoteThreshHold){
+
+                
+
+            }
+
+        } else if (_TypeOfVote == 2) { //vote out
+
+        }
 
     }
 
     function ModeratorQuickActionPanel (uint _ReportSession, bool _BanStatus) public {
+
+
 
     }
 
