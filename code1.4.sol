@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.0;
 
-contract x {
+contract w {
 
     mapping(address => bool) public AdminPermissions;
     mapping(address => bool) public DataWritePermissions;
@@ -9,7 +9,7 @@ contract x {
     uint public constant price = 4;
 
     //Moderator permissions
-    mapping(address => bool) public ModPermissions;
+    mapping(address => bool) public ModeratorPermissions;
 
     //Verifies if account exists
     mapping(address => bool) public accountAddressValid; //Determines if address has bought an account
@@ -31,6 +31,9 @@ contract x {
 
     //Verrifies if account has been blacklisted
     mapping(address => bool) public BlackListed;
+
+    //If account has been directly banned by moderator.
+    mapping(address => string) public ReasonForBan;
 
     //Person eledgable for money.
     uint public AutomatedEscrowSessionNumber;
@@ -146,16 +149,13 @@ contract x {
     
 }
 
-contract y is x {
+contract x is w {
 
     //Moderator elections system
-    struct ModElectionInfo {
+    struct ModeratorElectionInfo {
         address PersonWhoWillBeElected;
         uint VoteType; //1 = vote in, 2 = vote out
-        address AddressOfUserBehindContent; //Only for reporting people.
-        uint ListingNumberToReport; //Only for posts.
-        string ReportDetails;
-        mapping(address => mapping(uint => mapping(bool => uint))) VerdictReached;
+        mapping(bool => bool) ElectionResult; //first bool represents if election result reached, second bool represents electionresult. 
     }
 
     //Maximum votes in moderator election.
@@ -167,7 +167,7 @@ contract y is x {
     mapping(address => mapping(uint => mapping(uint => bool))) SpecificVoteSessionCreatedForPerson; //First uint represents vote type, second uint represents vote session number.
     mapping(address => mapping(uint => bool)) ElectionForPersonExists; //Determines if a person's election exists depending on context.
     mapping(address => uint) AddressToElectionNumber;
-    mapping(uint => ReportTrialStorage) public ElectionSessionInstance;
+    mapping(uint => ModeratorElectionInfo) public ElectionSessionInstance;
 
     //Personal Voting.
     mapping(address => mapping(uint => mapping(bool => bool))) public UserHasvotedInElection;
@@ -181,7 +181,7 @@ contract y is x {
 
 }
 
-contract z is y{
+contract y is x{
 
     //Join us
 
@@ -384,6 +384,7 @@ contract z is y{
         require(_TypeOfVote == 1 || _TypeOfVote == 2, "Invalid vote type.");
         require(UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == true || UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == false, "You have already voted");
         require(NumberOfVotesInElection[AddressToElectionNumber[_WhoToVoteFor]] == MaximumModVotes, "Election concluded");
+        require(SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][AddressToElectionNumber[_WhoToVoteFor]][_TypeOfVote] == false, "Election already created.");
 
         if(_TypeOfVote == 1) { //vote in
 
@@ -402,19 +403,52 @@ contract z is y{
             
             if(NumberOfVotesYesOrNo[AddressToElectionNumber[_WhoToVoteFor]][true] >= ModVoteThreshHold){
 
-                
+                ModeratorPermissions[_WhoToVoteFor] = true;
+                ElectionSessionInstance[AddressToElectionNumber[_WhoToVoteFor]].PersonWhoWillBeElected = _WhoToVoteFor;
+                SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][ElectionSessionNumber][_TypeOfVote] = true;
+                ElectionSessionInstance[AddressToElectionNumber[_WhoToVoteFor]].VoteType = _TypeOfVote;
+                ElectionSessionInstance[AddressToElectionNumber[_WhoToVoteFor]].ElectionResult[true] = true;
 
+                SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][AddressToElectionNumber[_WhoToVoteFor]][_TypeOfVote] == false;
             }
 
         } else if (_TypeOfVote == 2) { //vote out
+
+            if(SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][ElectionSessionNumber][_TypeOfVote] == false) {
+
+                ElectionSessionNumber++;
+                SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][ElectionSessionNumber][_TypeOfVote] = true;
+                ElectionForPersonExists[_WhoToVoteFor][2] = false;
+                AddressToElectionNumber[_WhoToVoteFor] = ElectionSessionNumber; 
+
+            }
+            
+            UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == false;
+            NumberOfVotesInElection[AddressToElectionNumber[_WhoToVoteFor]]++;
+            NumberOfVotesYesOrNo[AddressToElectionNumber[_WhoToVoteFor]][false]++;
+            
+            if(NumberOfVotesYesOrNo[AddressToElectionNumber[_WhoToVoteFor]][false] >= ModVoteThreshHold){
+
+                ModeratorPermissions[_WhoToVoteFor] = false;
+                ElectionSessionInstance[AddressToElectionNumber[_WhoToVoteFor]].PersonWhoWillBeElected = _WhoToVoteFor;
+                SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][ElectionSessionNumber][_TypeOfVote] = true;
+                ElectionSessionInstance[AddressToElectionNumber[_WhoToVoteFor]].VoteType = _TypeOfVote;
+                ElectionSessionInstance[AddressToElectionNumber[_WhoToVoteFor]].ElectionResult[true] = false;
+                
+                SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][AddressToElectionNumber[_WhoToVoteFor]][_TypeOfVote] == false;
+
+            }
 
         }
 
     }
 
-    function ModeratorQuickActionPanel (uint _ReportSession, bool _BanStatus) public {
+    function ModeratorQuickActionPanel (address _PersonToModerate, bool _BlackListStatus) public {
 
-
+        require(BlackListed[msg.sender] == false, "You have been blacklisted.");
+        require(ModeratorPermissions[msg.sender] == true, "You are not a moderator");
+        
+        BlackListed[_PersonToModerate] = _BlackListStatus;
 
     }
 
