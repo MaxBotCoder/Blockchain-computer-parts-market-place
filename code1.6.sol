@@ -36,7 +36,8 @@ contract x {
     mapping(address => string) public ReasonForBan;
 
     //Person eledgable for money.
-    uint public AutomatedEscrowSessionNumber;
+    //automated escrow number has since been fused with globalListingID.
+
     mapping(address => mapping(uint => mapping(bool => bool))) BuyerOrSeller; //Bool 1 determines if person is involved with transaction bool 2 determines if person is buyer or seller. 
     mapping(address => mapping(uint => bool)) PersonViolatedEscrowTerms; //address belongs to seller, uint is number of the escrow session number bool determines if user has been deceptive.
     mapping(address => mapping(uint => uint)) PersonEledgableForMoney; //address of seller, first uint represents escrow session number, second uint represents quantity of money eledgable for.
@@ -50,7 +51,6 @@ contract x {
         uint Price;
         uint ItemType;
         string ListingName;
-        string About;
         uint Quantity;
         uint TransactionTime;
         bool OutOfStock;
@@ -199,7 +199,7 @@ contract y is x{
 
     //Create listing
 
-    function CreateListing (uint _Price, uint _ItemType, string memory _ListingName, string memory _About, uint _Quantity) public ValidAccountPermissions {
+    function CreateListing (uint _Price, uint _ItemType, string memory _ListingName, uint _Quantity) public ValidAccountPermissions {
 
         //General rendering purposes.
         GlobalListingPageID++;
@@ -210,7 +210,6 @@ contract y is x{
         require(_ItemType >= MaximumItemTypes, "Invalid item type.");
         ListingPage[GlobalListingPageID].ItemType = _ItemType;
         ListingPage[GlobalListingPageID].ListingName = _ListingName;
-        ListingPage[GlobalListingPageID].About = _About;
         ListingPage[GlobalListingPageID].Quantity = _Quantity;
 
         //Profile specific rendering purposes.
@@ -219,18 +218,16 @@ contract y is x{
         PersonalListingPage[msg.sender][PersonalListingNumber[msg.sender]].Price = _Price;
         PersonalListingPage[msg.sender][PersonalListingNumber[msg.sender]].ItemType = _ItemType;
         PersonalListingPage[msg.sender][PersonalListingNumber[msg.sender]].ListingName = _ListingName;
-        PersonalListingPage[msg.sender][PersonalListingNumber[msg.sender]].About = _About;
         PersonalListingPage[msg.sender][PersonalListingNumber[msg.sender]].Quantity = _Quantity;
 
         //Determines escrow specific info.
-        AutomatedEscrowSessionNumber++;
-        EscrowSessionTiedToListing[AutomatedEscrowSessionNumber] = GlobalListingPageID;
-        BuyerOrSeller[msg.sender][AutomatedEscrowSessionNumber][true] = true;
-        PersonViolatedEscrowTerms[msg.sender][AutomatedEscrowSessionNumber] = false;
-        PersonEledgableForMoney[msg.sender][AutomatedEscrowSessionNumber] = 0;
+        EscrowSessionTiedToListing[GlobalListingPageID] = GlobalListingPageID;
+        BuyerOrSeller[msg.sender][GlobalListingPageID][true] = true;
+        PersonViolatedEscrowTerms[msg.sender][GlobalListingPageID] = false;
+        PersonEledgableForMoney[msg.sender][GlobalListingPageID] = 0;
 
         //Escrow number tied to listing.
-        EscrowSessionTiedToListing[GlobalListingPageID] = AutomatedEscrowSessionNumber;
+        EscrowSessionTiedToListing[GlobalListingPageID] = GlobalListingPageID;
 
     }
 
@@ -300,13 +297,13 @@ contract y is x{
 
         if (_SellerOrBuyerCommand == 1) { //Buyer commands
             
-            require(BuyerOrSeller[msg.sender][EscrowSessionTiedToListing[_GlobalSellPageID]][true] == false, "You are not a buyer");
+            require(BuyerOrSeller[msg.sender][_GlobalSellPageID][true] == false, "You are not a buyer");
 
             Report(3,_GlobalSellPageID,"Item is not what I wanted to buy.");
 
         } else if (_SellerOrBuyerCommand == 2) { //Seller commands
 
-            require(BuyerOrSeller[msg.sender][EscrowSessionTiedToListing[_GlobalSellPageID]][true] == true, "You are not a seller");
+            require(BuyerOrSeller[msg.sender][_GlobalSellPageID][true] == true, "You are not a seller");
             require(ListingPage[GlobalListingPageID].TransactionTime == ListingPage[_GlobalSellPageID].TransactionTime + Escrowithdrawtime, "Must wait 1 week before withdrawing money");
 
             payable (msg.sender).call{value: ListingPage[GlobalListingPageID].Price}("");
