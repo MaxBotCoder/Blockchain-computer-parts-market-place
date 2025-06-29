@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.0;
 
-contract w {
+contract x {
 
     mapping(address => bool) public AdminPermissions;
     mapping(address => bool) public DataWritePermissions;
@@ -126,19 +126,28 @@ contract w {
     }
 
     //Report system
-    struct ReportTrialStorage {
+    struct GeneralPurposeVotingSystem {
+        //Report Related
         string ReportTypeHumanReadable;
         uint ReportType;
         address AddressOfUserBehindContent; //Only for reporting people.
         uint ListingNumberToReport; //Only for posts.
         string ReportDetails;
         mapping(address => mapping(uint => mapping(bool => bool))) VerdictReached;
+        //Moderator election related
+
+        address PersonWhoWillBeElected;
+        uint VoteType; //1 = vote in, 2 = vote out
+        mapping(bool => bool) ElectionResult; //first bool represents if election result reached, second bool represents electionresult. 
+        
     }
     
+    //report elections
+
     //global voting.
     uint public ReportSessionNumber;
     mapping(uint => bool) ReportSessionNumberExists;
-    mapping(uint => ReportTrialStorage) public ReportTrialInstance;
+    mapping(uint => GeneralPurposeVotingSystem) public ReportTrialInstance;
 
     //Personal Voting.
     mapping(address => mapping(uint => mapping(bool => bool))) public UserHasvoted;
@@ -146,18 +155,8 @@ contract w {
     //Catagorised voting
     mapping(uint => uint) NumberOfVotes;
     mapping(uint => mapping(bool => uint)) NumberOfVotesInSpecificCatagory;
-    
-}
 
-contract x is w {
-
-    //Moderator elections system
-    struct ModeratorElectionInfo {
-        address PersonWhoWillBeElected;
-        uint VoteType; //1 = vote in, 2 = vote out
-        mapping(bool => bool) ElectionResult; //first bool represents if election result reached, second bool represents electionresult. 
-    }
-
+    //Moderator elections
     //Maximum votes in moderator election.
     uint public constant MaximumModVotes = 25; //Must be changed prior to deployment.
     uint public constant ModVoteThreshHold = 13;
@@ -167,7 +166,7 @@ contract x is w {
     mapping(address => mapping(uint => mapping(uint => bool))) SpecificVoteSessionCreatedForPerson; //First uint represents vote type, second uint represents vote session number.
     mapping(address => mapping(uint => bool)) ElectionForPersonExists; //Determines if a person's election exists depending on context.
     mapping(address => uint) AddressToElectionNumber;
-    mapping(uint => ModeratorElectionInfo) public ElectionSessionInstance;
+    mapping(uint => GeneralPurposeVotingSystem) public ElectionSessionInstance;
 
     //Personal Voting.
     mapping(address => mapping(uint => mapping(bool => bool))) public UserHasvotedInElection;
@@ -178,13 +177,22 @@ contract x is w {
 
     //Voting session conclusion status.
     mapping(address => mapping(uint => mapping(bool => uint))) VoteSessionConcluded;
-
+    
 }
+
 
 contract y is x{
 
-    //Join us
+    constructor(){
+        DataWritePermissions[msg.sender] = true;
+    }
 
+    function AddAdmins(address _WhoToAdd) public {
+        require(DataWritePermissions[msg.sender] == true, "Permission denied.");
+        DataWritePermissions[_WhoToAdd] = true;
+    }
+
+    //Join us
     function SignUp (string memory _Handle) payable public PriceToSignUp(_Handle) { //Creats an account
 
     }
@@ -260,15 +268,11 @@ contract y is x{
 
             ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for potentially being illicit.";
 
-        } else if (_TypeOfReport == 3){ //For reporting potentially scamers.
+        } else if (_TypeOfReport == 3){ //For reporting potential scamers.
 
             ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for scamming.";
 
-        } else if (_TypeOfReport == 3){ //For reporting potentially scamers.
-
-            ReportTrialInstance[ReportSessionNumber].ReportTypeHumanReadable = "Reported for abusing admin powers.";
-
-        }
+        } 
 
         //Write info related to report trial instance!
         ReportTrialInstance[ReportSessionNumber].ReportType = _TypeOfReport;
@@ -312,7 +316,9 @@ contract y is x{
     }
 
     //Report Trial to determine guilt or innocence of perp
-    function ReportTrial (uint _ReportSessionNumber, bool _Vote) public {
+    function VotigSystem (uint _VoteType, uint _ReportSessionNumber, bool _Vote, address _WhoToVoteFor, uint _TypeOfVote) public { //Vote type 1 = Report system, Vote type 2 is for voting in or out somoene
+
+        if(_VoteType == 1) {
 
         require(NumberOfVotes[ReportSessionNumber] <= MaxVotes, "Maximum votes have been reached for this topic.");
         require(ReportSessionNumberExists[_ReportSessionNumber] == true, "Invalid report session number");
@@ -361,25 +367,11 @@ contract y is x{
 
             } 
 
-        } else if (ReportTrialInstance[ReportSessionNumber].ReportType == 4) { //Abuse of admin powers!
-
-            UserHasvoted[msg.sender][_ReportSessionNumber][true] = _Vote;
-            NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] = NumberOfVotes[ReportSessionNumber];
-
-
-            if(NumberOfVotesInSpecificCatagory[ReportSessionNumber][_Vote] >= VoteThreshhold){
-                
-                BlackListed[ReportTrialInstance[ReportSessionNumber].AddressOfUserBehindContent] = true;
-
-            } 
-
         }
 
-    }
+        } else if (_VoteType == 2) {
 
-    function VoteInModerator(address _WhoToVoteFor, uint _TypeOfVote) public {
-
-        require(BlackListed[_WhoToVoteFor] == false, "Cannot vote in black listed people");
+            require(BlackListed[_WhoToVoteFor] == false, "Cannot vote in black listed people");
         require(accountAddressValid[_WhoToVoteFor] == true, "Person you vote in must have skin in the game.. aka have an account ofc.");
         require(_TypeOfVote == 1 || _TypeOfVote == 2, "Invalid vote type.");
         require(UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == true || UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == false, "You have already voted");
@@ -441,7 +433,10 @@ contract y is x{
 
         }
 
+        } 
+
     }
+
 
     function ModeratorQuickActionPanel (address _PersonToModerate, bool _BlackListStatus) public {
 
