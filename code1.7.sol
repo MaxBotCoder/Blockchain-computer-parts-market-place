@@ -47,6 +47,7 @@ contract x {
 
     //Listing info
     struct Listing {
+        //general info
         uint ItemID;
         uint Price;
         uint ItemType;
@@ -54,6 +55,12 @@ contract x {
         uint Quantity;
         uint TransactionTime;
         bool OutOfStock;
+
+        //shipment info
+        mapping(address => uint) ItemIDofShippment;
+        mapping(address => uint) QuantityofShippment;
+        mapping(address => bool) ShipmentStarted;
+        mapping(address => bool) Recieved;
     }
 
     //General
@@ -81,18 +88,6 @@ contract x {
 
     //Escrow session tied to listing.
     mapping(uint => uint) EscrowSessionTiedToListing; //first uint is the number of listing, second uint represents escrow session number.
-
-    //Shipping info
-    struct ShippingInfo {
-        uint ItemID;
-        uint Quantity;
-        bool ShipmentStarted;
-        bool Recieved;
-    }
-
-    //Shipping Info
-    uint public ShipmentID;
-    mapping(uint => ShippingInfo) public ViewShippingInfo;
 
     modifier PriceToSignUp (string memory _Handle) {
         require(BlackListed[msg.sender] == false, "You have been blacklisted.");
@@ -184,12 +179,23 @@ contract x {
 contract y is x{
 
     constructor(){
-        DataWritePermissions[msg.sender] = true;
+        AdminPermissions[msg.sender] = true;
     }
 
-    function AddAdmins(address _WhoToAdd) public {
-        require(DataWritePermissions[msg.sender] == true, "Permission denied.");
-        DataWritePermissions[_WhoToAdd] = true;
+    function AddAdmins(uint _TypeOfPermission ,address _WhoToAdd, bool _Permission) public { //uint = 1 means granting data permissions, uint = 2 means granting 
+        
+        require(AdminPermissions[msg.sender] == true, "Permission denied.");
+
+        if(_TypeOfPermission == 1) {
+
+        DataWritePermissions[_WhoToAdd] = _Permission;
+
+        } else if (_TypeOfPermission == 2){
+
+        AdminPermissions[_WhoToAdd] = _Permission;
+
+        }
+
     }
 
     //Join us
@@ -236,7 +242,7 @@ contract y is x{
         
         require(ListingPage[_GlobalSellPageID].OutOfStock == false, "Item is out of stock.");
         require(msg.sender.balance >= ListingPage[_GlobalSellPageID].Price * _Quantity, "Balance to low for transaction.");
-        require(msg.value == ListingPage[_GlobalSellPageID].Price * _Quantity, "Now enough money was sent to complete this transaction tisk... tisk...");
+        require(msg.value == ListingPage[_GlobalSellPageID].Price * _Quantity, "Not enough money sent.");
 
         ListingPage[_GlobalSellPageID].Quantity--;
 
@@ -252,7 +258,6 @@ contract y is x{
     function Report (uint _TypeOfReport, uint _GlobalListingPageID, string memory _ReportDetails) public {
 
         require(ListingExists[_GlobalListingPageID] == true, "Listing you tried to report does not exist!");
-        require(_TypeOfReport == 1 || _TypeOfReport == 2 || _TypeOfReport == 3, "Invalid report type.");
 
         ReportSessionNumber++;
         ReportSessionNumberExists[ReportSessionNumber] = true;
@@ -292,8 +297,7 @@ contract y is x{
      //Automated escrow system
     function WithdrawAutomatedEscrow(uint _GlobalSellPageID, uint _SellerOrBuyerCommand) public {
 
-        require(BlackListed[msg.sender] == false, "Your abilities have been halted.");
-        require(_SellerOrBuyerCommand == 1 || _SellerOrBuyerCommand == 2, "Invalid abillities.");
+        require(BlackListed[msg.sender] == false, "Can't whilst blacklisted.");
 
         if (_SellerOrBuyerCommand == 1) { //Buyer commands
             
@@ -368,9 +372,8 @@ contract y is x{
 
         } else if (_VoteType == 2) {
 
-            require(BlackListed[_WhoToVoteFor] == false, "Cannot vote in black listed people");
-        require(accountAddressValid[_WhoToVoteFor] == true, "Person you vote in must have skin in the game.. aka have an account ofc.");
-        require(_TypeOfVote == 1 || _TypeOfVote == 2, "Invalid vote type.");
+        require(BlackListed[_WhoToVoteFor] == false, "Cannot vote in black listed people");
+        require(accountAddressValid[_WhoToVoteFor] == true, "Person you vote in must have an account.");
         require(UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == true || UserHasvotedInElection[msg.sender][AddressToElectionNumber[_WhoToVoteFor]][true] == false, "You have already voted");
         require(NumberOfVotesInElection[AddressToElectionNumber[_WhoToVoteFor]] == MaximumModVotes, "Election concluded");
         require(SpecificVoteSessionCreatedForPerson[_WhoToVoteFor][AddressToElectionNumber[_WhoToVoteFor]][_TypeOfVote] == false, "Election already created.");
@@ -435,12 +438,26 @@ contract y is x{
     }
 
 
-    function ModeratorQuickActionPanel (address _PersonToModerate, bool _BlackListStatus) public {
+    function SpecialActionsPanel (uint _ListingToInfluence , address _PersonToInfluence, bool _BoolData, bool _BoolData2, uint _IntData) public {
 
         require(BlackListed[msg.sender] == false, "You have been blacklisted.");
-        require(ModeratorPermissions[msg.sender] == true, "You are not a moderator");
+
+        if(ModeratorPermissions[msg.sender] == true) {
+
+        assert(ModeratorPermissions[msg.sender] == true);
         
-        BlackListed[_PersonToModerate] = _BlackListStatus;
+        BlackListed[_PersonToInfluence] = _BoolData;
+
+        } else if (DataWritePermissions[msg.sender] == true) {
+
+        assert(DataWritePermissions[msg.sender] == true);
+
+        PersonalListingPage[SellPageTiedToAddress[_ListingToInfluence]][_ListingToInfluence].ItemIDofShippment[_PersonToInfluence] = ListingPage[_ListingToInfluence].ItemIDofShippment[_PersonToInfluence] = ListingPage[_ListingToInfluence].ItemID;
+        PersonalListingPage[SellPageTiedToAddress[_ListingToInfluence]][_ListingToInfluence].QuantityofShippment[_PersonToInfluence] = ListingPage[_ListingToInfluence].QuantityofShippment[_PersonToInfluence] = _IntData;
+        PersonalListingPage[SellPageTiedToAddress[_ListingToInfluence]][_ListingToInfluence].ShipmentStarted[_PersonToInfluence] = ListingPage[_ListingToInfluence].ShipmentStarted[_PersonToInfluence] = _BoolData;
+        PersonalListingPage[SellPageTiedToAddress[_ListingToInfluence]][_ListingToInfluence].Recieved[_PersonToInfluence] = ListingPage[_ListingToInfluence].Recieved[_PersonToInfluence] = _BoolData2;
+        
+        }
 
     }
 
